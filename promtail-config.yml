@@ -1,0 +1,63 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Extract clean container name without leading slash (e.g., "/api-go-todos-api-1" -> "api-go-todos-api-1")
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      # Extract Docker Compose service name (e.g. "api", "postgres") - scale-proof!
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'compose_service'
+      # Extract custom service label if provided in docker-compose.yml
+      - source_labels: ['__meta_docker_container_label_service']
+        target_label: 'service'
+    pipeline_stages:
+      # Stage 1: Unpack outer Docker log-driver JSON wrapper
+      # (Docker wraps stdout lines into: {"log":"...","stream":"stdout","time":"..."})
+      - json:
+          expressions:
+            log: log
+            stream: stream
+            docker_time: time
+
+      # Stage 2: Unpack inner log line immediately so subsequent parsers can process it directly
+      - output:
+          source: log
+
+      # Stage 3a: Parse inner structured JSON emitted by Go in production mode
+      - json:
+          expressions:
+            service: service
+            env: env
+            level: level
+            msg: msg
+            request_id: request_id
+            status: status
+
+      # Stage 3b: Parse inner logfmt (key=value) emitted by Go in development mode
+      - logfmt:
+          mapping:
+            service:
+            env:
+            level:
+
+      # Stage 4: Promote low-cardinality fields to indexed Loki stream labels
+      - labels:
+          service:
+          env:
+          level:

@@ -1,0 +1,10 @@
+# Loki & Grafana storage directories (if mounted locally)
+data/
+*.log
+
+# Environment variables containing sensitive credentials
+.env
+
+# OS metadata
+.DS_Store
+Thumbs.db
