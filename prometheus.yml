@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s     # Interval pengambilan metrik dari target
+  evaluation_interval: 15s # Interval evaluasi aturan alert / recording rules
+
+scrape_configs:
+  # 1. Prometheus self-monitoring (memonitor kesehatan Prometheus itu sendiri)
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 2. Go Web API (api-go-todos)
+  # Mengambil metrik dari endpoint http://api-todos:8080/metrics via monitoring-net
+  - job_name: "api-todos"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["api-todos:8080", "host.docker.internal:8080"]
+        labels:
+          service: "api-todos"
+          env: "development"
