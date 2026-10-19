@@ -172,14 +172,32 @@ sum(rate({service="api-todos"} | json [1m])) by (level)
 | :--- | :--- | :--- | :--- |
 | **Loki** | `grafana/loki:3.2.1` | ~80 - 120 MB | TSDB index, 14d retention compactor |
 | **Promtail** | `grafana/promtail:3.2.1` | ~25 - 40 MB | Async host tailer |
-| **Grafana** | `grafana/grafana:11.3.0` | ~50 - 70 MB | Web visualization UI |
-| **Total** | | **< 230 MB** | Lightweight, ideal for single VPS |
+| **Prometheus** | `prom/prometheus:v2.54.1` | ~40 - 70 MB | Scrapes `/metrics` every 15s, 15d retention |
+| **Grafana** | `grafana/grafana:11.3.0` | ~50 - 70 MB | Web visualization UI with auto-provisioned dashboards |
+| **Total** | | **< 300 MB** | Extremely lightweight, ideal for single VPS |
 
 ---
 
-## 7. Upcoming Observability Roadmap
+## 7. RED Method Dashboard & Alert Rules
+
+### Auto-Provisioned Grafana Dashboard
+Access Grafana at `http://localhost:3000` -> **Dashboards** -> folder **Observability** -> **"API Todos - Overview (RED Method)"**:
+- **Rate (R)**: Request Rate (RPS by Route) via `sum(rate(http_requests_total[1m])) by (path)`
+- **Errors (E)**: Error Rate (% 5xx) via `sum(rate(http_requests_total{status=~"5.."}[1m]))`
+- **Duration (D)**: Latency distribution (p50, p95, p99) via `histogram_quantile(..., http_request_duration_seconds_bucket)`
+- **Saturation**: In-Flight Requests (`http_requests_in_flight`) & Go Goroutines (`go_goroutines`)
+- **Forensic Logs**: Embedded live stream of `{service="api-todos"}` logs.
+
+### Prometheus Alert Rules (`alerts.yml`)
+1. **`ApiHighErrorRate`**: Triggers if 5xx error rate > 5% for 3 minutes.
+2. **`ApiHighLatency`**: Triggers if p95 latency > 1s for 3 minutes.
+3. **`ApiInstanceDown`**: Triggers if target is unreachable (`up{job="api-todos"} == 0`) for 1 minute.
+
+---
+
+## 8. Upcoming Observability Roadmap
 
 - [x] **Stages 1 - 5**: Structured logging (`log/slog`), Chi correlation middleware, Loki & Promtail stack.
-- [ ] **Stage 6**: Metrics fundamentals — introducing Prometheus, RED method (Rate, Errors, Duration), and instrumenting HTTP latency.
-- [ ] **Stage 7**: Production monitoring & alerting — SLI/SLO/SLA definitions, Prometheus alert rules, and Grafana alert dashboards.
+- [x] **Stage 6**: Metrics fundamentals — RED method (Rate, Errors, Duration), Go runtime metrics, Prometheus scraping.
+- [x] **Stage 7**: Production monitoring & alerting — Prometheus alert rules, Grafana auto-provisioned RED dashboards.
 - [ ] **Stage 8**: Distributed tracing & profiling — OpenTelemetry integration and Go `pprof`.

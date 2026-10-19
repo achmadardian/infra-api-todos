@@ -1,0 +1,43 @@
+groups:
+  - name: api-todos-alerts
+    rules:
+      # 1. ApiHighErrorRate: Memicu alert jika error rate 5xx melebihi 5% selama 3 menit terus-menerus
+      - alert: ApiHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="api-todos", status=~"5.."}[1m]))
+            /
+            sum(rate(http_requests_total{job="api-todos"}[1m]))
+          ) * 100 > 5
+        for: 3m
+        labels:
+          severity: critical
+          service: api-todos
+        annotations:
+          summary: "API Todos high HTTP 5xx error rate (> 5%)"
+          description: "HTTP 5xx error rate is currently {{ $value | printf \"%.2f\" }}% on api-todos."
+          runbook_query: '{service="api-todos"} | json | level="ERROR"'
+
+      # 2. ApiHighLatency: Memicu alert jika p95 latency melebihi 1 detik selama 3 menit
+      - alert: ApiHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="api-todos"}[1m])) by (le)) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+          service: api-todos
+        annotations:
+          summary: "API Todos high P95 latency (> 1s)"
+          description: "P95 latency is {{ $value | printf \"%.2f\" }}s for the past 3 minutes on api-todos."
+          runbook_query: '{service="api-todos"} | json | duration_ms > 1000'
+
+      # 3. ApiInstanceDown: Memicu alert jika instance api-todos tidak bisa di-scrape selama 1 menit
+      - alert: ApiInstanceDown
+        expr: up{job="api-todos"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api-todos
+        annotations:
+          summary: "API Todos instance is down"
+          description: "Prometheus has failed to scrape api-todos for more than 1 minute."
